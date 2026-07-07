@@ -29,10 +29,17 @@ export type Project = {
 export type Task = {
   id: string
   project_id: string
-  user_id: string
   description: string
-  time_spent: number
-  registration_date: string
+  original_time: string
+  created_at: string
+}
+
+export type TaskLog = {
+  id: string
+  task_id: string
+  user_id: string
+  worked_time: string
+  created_at: string
 }
 
 export type Payment = {
@@ -69,8 +76,8 @@ export interface Database {
       }
       tasks: {
         Row: Task
-        Insert: Omit<Task, 'registration_date'> & { registration_date?: string }
-        Update: Partial<Omit<Task, 'id' | 'project_id' | 'user_id'>>
+        Insert: Omit<Task, 'id' | 'created_at'> & { id?: string; created_at?: string }
+        Update: Partial<Omit<Task, 'id' | 'project_id' | 'created_at'>>
         Relationships: [
           {
             foreignKeyName: 'tasks_project_id_fkey'
@@ -79,8 +86,22 @@ export interface Database {
             referencedRelation: 'projects'
             referencedColumns: ['id']
           },
+        ]
+      }
+      task_logs: {
+        Row: TaskLog
+        Insert: Omit<TaskLog, 'id' | 'created_at'> & { id?: string; created_at?: string }
+        Update: Partial<Omit<TaskLog, 'id' | 'task_id' | 'user_id' | 'created_at'>>
+        Relationships: [
           {
-            foreignKeyName: 'tasks_user_id_fkey'
+            foreignKeyName: 'task_logs_task_id_fkey'
+            columns: ['task_id']
+            isOneToOne: false
+            referencedRelation: 'tasks'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'task_logs_user_id_fkey'
             columns: ['user_id']
             isOneToOne: false
             referencedRelation: 'profiles'

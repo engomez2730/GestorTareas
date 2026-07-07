@@ -73,22 +73,35 @@ create table public.projects (
 
 -- ---------------------------------------------------------------------------
 -- tasks
--- `id` is entered manually by the user and is only unique within a project,
--- so the primary key is the (project_id, id) pair rather than `id` alone.
+-- Work items scoped to a project. Only admins create/edit/delete them; the
+-- `original_time` estimate is fixed by the admin at creation time and is
+-- strictly formatted as 'HH:MM' (e.g. '02:00', '00:25').
 -- ---------------------------------------------------------------------------
 create table public.tasks (
-  id                text not null,
-  project_id        uuid not null references public.projects (id) on delete cascade,
-  user_id           uuid not null references public.profiles (id) on delete cascade,
-  description       text not null,
-  time_spent        numeric(6, 2) not null check (time_spent >= 0),
-  registration_date timestamptz not null default now(),
-
-  primary key (project_id, id)
+  id            uuid primary key default gen_random_uuid(),
+  project_id    uuid not null references public.projects (id) on delete cascade,
+  description   text not null,
+  original_time text not null check (original_time ~ '^[0-9]{2}:[0-5][0-9]$'),
+  created_at    timestamptz not null default now()
 );
 
-create index tasks_user_id_idx on public.tasks (user_id);
 create index tasks_project_id_idx on public.tasks (project_id);
+
+-- ---------------------------------------------------------------------------
+-- task_logs
+-- Time actually worked by regular users against a task. Any number of users
+-- may log time on the same task; `worked_time` uses the same 'HH:MM' format.
+-- ---------------------------------------------------------------------------
+create table public.task_logs (
+  id          uuid primary key default gen_random_uuid(),
+  task_id     uuid not null references public.tasks (id) on delete cascade,
+  user_id     uuid not null references public.profiles (id) on delete cascade,
+  worked_time text not null check (worked_time ~ '^[0-9]{2}:[0-5][0-9]$'),
+  created_at  timestamptz not null default now()
+);
+
+create index task_logs_task_id_idx on public.task_logs (task_id);
+create index task_logs_user_id_idx on public.task_logs (user_id);
 
 -- ---------------------------------------------------------------------------
 -- payments
@@ -107,10 +120,11 @@ create index payments_user_id_idx on public.payments (user_id);
 -- =============================================================================
 -- Row Level Security
 -- =============================================================================
-alter table public.profiles enable row level security;
-alter table public.projects enable row level security;
-alter table public.tasks    enable row level security;
-alter table public.payments enable row level security;
+alter table public.profiles  enable row level security;
+alter table public.projects  enable row level security;
+alter table public.tasks     enable row level security;
+alter table public.task_logs enable row level security;
+alter table public.payments  enable row level security;
 
 -- Helper: is the current user an admin? SECURITY DEFINER avoids recursive
 -- RLS lookups against profiles from inside a profiles policy.
@@ -170,28 +184,44 @@ create policy "projects_admin_delete"
   using (public.is_admin());
 
 -- ---------------------------------------------------------------------------
--- tasks policies — a user can manage only their own tasks; admins see all.
+-- tasks policies — every authenticated user can read (needed to browse and
+-- take tasks); only admins can create, edit or delete them.
 -- ---------------------------------------------------------------------------
-create policy "tasks_select_own_or_admin"
+create policy "tasks_select_authenticated"
   on public.tasks for select
   to authenticated
-  using (user_id = auth.uid() or public.is_admin());
+  using (true);
 
-create policy "tasks_insert_own"
+create policy "tasks_admin_insert"
   on public.tasks for insert
   to authenticated
-  with check (user_id = auth.uid());
+  with check (public.is_admin());
 
-create policy "tasks_update_own_or_admin"
+create policy "tasks_admin_update"
   on public.tasks for update
   to authenticated
-  using (user_id = auth.uid() or public.is_admin())
-  with check (user_id = auth.uid() or public.is_admin());
+  using (public.is_admin())
+  with check (public.is_admin());
 
-create policy "tasks_delete_own_or_admin"
+create policy "tasks_admin_delete"
   on public.tasks for delete
   to authenticated
+  using (public.is_admin());
+
+-- ---------------------------------------------------------------------------
+-- task_logs policies — users log and see only their own worked time; admins
+-- see every log. No update/delete policy is defined, so entries are
+-- immutable once created (by design — this is a time-tracking audit trail).
+-- ---------------------------------------------------------------------------
+create policy "task_logs_select_own_or_admin"
+  on public.task_logs for select
+  to authenticated
   using (user_id = auth.uid() or public.is_admin());
+
+create policy "task_logs_insert_own"
+  on public.task_logs for insert
+  to authenticated
+  with check (user_id = auth.uid());
 
 -- ---------------------------------------------------------------------------
 -- payments policies — users read only their own rows; only admins write.

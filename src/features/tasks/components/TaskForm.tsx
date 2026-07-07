@@ -1,9 +1,11 @@
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useProjects } from '../../projects/hooks/useProjects'
+import { TimeInput } from '../../../components/ui/TimeInput'
 import { taskSchema, type TaskFormInput, type TaskFormValues } from '../schemas'
 import { useCreateTask } from '../hooks/useTasks'
 
+/** Admin-only: creating a task also fixes its estimated/original time. */
 export function TaskForm() {
   const { data: projects } = useProjects()
   const createTask = useCreateTask()
@@ -25,7 +27,7 @@ export function TaskForm() {
       onSubmit={handleSubmit(onSubmit)}
       className="space-y-4 rounded-lg border border-slate-200 bg-white p-6"
     >
-      <h2 className="text-lg font-semibold text-slate-900">Registrar tarea</h2>
+      <h2 className="text-lg font-semibold text-slate-900">Crear tarea</h2>
 
       <div>
         <label className="mb-1 block text-sm font-medium text-slate-700">Proyecto</label>
@@ -49,16 +51,6 @@ export function TaskForm() {
       </div>
 
       <div>
-        <label className="mb-1 block text-sm font-medium text-slate-700">ID de tarea</label>
-        <input
-          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-          placeholder="ej. TASK-042"
-          {...register('id')}
-        />
-        {errors.id && <p className="mt-1 text-xs text-red-600">{errors.id.message}</p>}
-      </div>
-
-      <div>
         <label className="mb-1 block text-sm font-medium text-slate-700">Descripción</label>
         <textarea
           rows={3}
@@ -71,15 +63,12 @@ export function TaskForm() {
       </div>
 
       <div>
-        <label className="mb-1 block text-sm font-medium text-slate-700">Horas invertidas</label>
-        <input
-          type="number"
-          step="0.25"
-          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-          {...register('time_spent')}
-        />
-        {errors.time_spent && (
-          <p className="mt-1 text-xs text-red-600">{errors.time_spent.message}</p>
+        <label className="mb-1 block text-sm font-medium text-slate-700">
+          Tiempo original (HH:MM)
+        </label>
+        <TimeInput {...register('original_time')} />
+        {errors.original_time && (
+          <p className="mt-1 text-xs text-red-600">{errors.original_time.message}</p>
         )}
       </div>
 
@@ -88,7 +77,7 @@ export function TaskForm() {
         disabled={isSubmitting}
         className="w-full rounded-md bg-slate-900 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
       >
-        {isSubmitting ? 'Guardando...' : 'Registrar tarea'}
+        {isSubmitting ? 'Creando...' : 'Crear tarea'}
       </button>
     </form>
   )
